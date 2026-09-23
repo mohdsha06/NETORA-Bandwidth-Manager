@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ctypes
+import os
 import sys
 import time
 from collections import deque
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QCloseEvent
+from PyQt6.QtGui import QColor, QCloseEvent, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow,
@@ -15,6 +17,14 @@ import pyqtgraph as pg
 
 from engine import is_admin, QoSController, NetworkMonitorWorker
 from theme import PALETTE, format_bytes, apply_theme
+
+
+def get_asset_path(filename: str) -> str:
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        return os.path.join(str(bundle_dir), filename)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
 
 GRAPH_WINDOW_SECONDS = 60
 
@@ -48,6 +58,9 @@ class NetoraWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Netora — Bandwidth Manager")
+        icon_path = get_asset_path("LOGO.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         self.resize(1180, 720)
         self.setMinimumSize(960, 580)
 
@@ -93,38 +106,106 @@ class NetoraWindow(QMainWindow):
             status_bar.addWidget(self.status_lbl)
 
     def _build_header(self) -> QWidget:
-        card = QFrame()
-        card.setObjectName("Card")
-        lay = QHBoxLayout(card)
-        lay.setContentsMargins(14, 10, 14, 10)
+        header = QFrame()
+        header.setObjectName("Card")
+        header.setMinimumHeight(68)
+        header.setStyleSheet(
+            f"QFrame#Card {{ background-color: {PALETTE['BG_SURFACE']}; "
+            f"border: 1px solid {PALETTE['BORDER']}; border-radius: 8px; }}"
+        )
+        lay = QHBoxLayout(header)
+        lay.setContentsMargins(16, 8, 16, 8)
+        lay.setSpacing(14)
 
-        title = QLabel("NETORA")
-        title.setStyleSheet("font-size: 18px; font-weight: 800; letter-spacing: 2px;")
-        lay.addWidget(title)
+        brand_box = QHBoxLayout()
+        brand_box.setSpacing(8)
 
+        logo_label = QLabel()
+        logo_path = get_asset_path("LOGOFONT.png")
+        logo_pix = QPixmap(logo_path)
+
+        if not logo_pix.isNull():
+            scaled_logo = logo_pix.scaledToHeight(
+                44,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            logo_label.setPixmap(scaled_logo)
+        else:
+            logo_label.setText("NETORA")
+            logo_label.setStyleSheet("font-size: 20px; font-weight: 800; letter-spacing: 2px;")
+
+        logo_label.setStyleSheet("border: none; background: transparent;")
+        brand_box.addWidget(logo_label)
+
+        byline = QLabel("by Skriptora")
+        byline.setStyleSheet(
+            f"color: {PALETTE['TEXT_SECONDARY']}; "
+            "font-size: 11px; font-weight: 600; letter-spacing: 0.5px; "
+            "border: none; background: transparent; padding-top: 14px;"
+        )
+        brand_box.addWidget(byline)
+        lay.addLayout(brand_box)
+
+        lay.addSpacing(6)
+
+        pill_color = PALETTE["ACCENT_CYAN"] if self._admin else PALETTE["ACCENT_DANGER"]
         admin_badge = QLabel("ADMIN ACTIVE" if self._admin else "STANDARD USER")
-        badge_color = PALETTE["ACCENT_CYAN"] if self._admin else PALETTE["ACCENT_DANGER"]
-        admin_badge.setStyleSheet(f"background: {badge_color}22; color: {badge_color}; border: 1px solid {badge_color}; border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 700;")
+        admin_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        admin_badge.setFixedHeight(26)
+        admin_badge.setStyleSheet(
+            f"background: {pill_color}1A; color: {pill_color}; "
+            f"border: 1px solid {pill_color}66; border-radius: 6px; "
+            "padding: 0 10px; font-size: 10px; font-weight: 700;"
+        )
         lay.addWidget(admin_badge)
 
-        lay.addSpacing(16)
+        lay.addSpacing(10)
+
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Filter processes…")
-        self.search_box.setMaximumWidth(280)
+        self.search_box.setFixedHeight(34)
+        self.search_box.setMaximumWidth(260)
         self.search_box.textChanged.connect(self._on_search_changed)
         lay.addWidget(self.search_box)
 
-        lay.addStretch()
+        lay.addStretch(1)
 
-        self.down_metric = QLabel("Total Down: 0 KB/s")
-        self.down_metric.setStyleSheet(f"color: {PALETTE['ACCENT_CYAN']}; font-weight: 700; font-size: 14px;")
-        self.up_metric = QLabel("Total Up: 0 KB/s")
-        self.up_metric.setStyleSheet(f"color: {PALETTE['ACCENT_PURPLE']}; font-weight: 700; font-size: 14px;")
+        def _make_metric_card(label_text: str, color_hex: str):
+            card = QFrame()
+            card.setFixedHeight(48)
+            card.setMinimumWidth(130)
+            card.setStyleSheet(
+                f"background-color: {PALETTE['BG_ELEVATED']}; "
+                f"border: 1px solid {PALETTE['BORDER']}; "
+                f"border-left: 3px solid {color_hex}; "
+                "border-radius: 6px;"
+            )
+            c_lay = QVBoxLayout(card)
+            c_lay.setContentsMargins(10, 4, 10, 4)
+            c_lay.setSpacing(1)
 
-        lay.addWidget(self.down_metric)
-        lay.addSpacing(16)
-        lay.addWidget(self.up_metric)
-        return card
+            lbl = QLabel(label_text.upper())
+            lbl.setStyleSheet(
+                f"color: {PALETTE['TEXT_SECONDARY']}; font-size: 9px; font-weight: 700; "
+                "letter-spacing: 0.5px; border: none; background: transparent;"
+            )
+
+            val = QLabel("0 KB/s")
+            val.setStyleSheet(
+                f"color: {PALETTE['TEXT_PRIMARY']}; font-size: 13px; font-weight: 700; "
+                "border: none; background: transparent;"
+            )
+            c_lay.addWidget(lbl)
+            c_lay.addWidget(val)
+            return card, val
+
+        down_card, self.down_metric = _make_metric_card("Total PC Download", PALETTE["ACCENT_CYAN"])
+        up_card, self.up_metric = _make_metric_card("Total PC Upload", PALETTE["ACCENT_PURPLE"])
+
+        lay.addWidget(down_card)
+        lay.addWidget(up_card)
+
+        return header
 
     def _build_table_panel(self) -> QWidget:
         card = QFrame()
@@ -281,8 +362,8 @@ class NetoraWindow(QMainWindow):
         self._last_stats = stats
         total_down = float(stats.get("total_down_bps", 0.0))
         total_up = float(stats.get("total_up_bps", 0.0))
-        self.down_metric.setText(f"Total Down: {format_bytes(total_down)}")
-        self.up_metric.setText(f"Total Up: {format_bytes(total_up)}")
+        self.down_metric.setText(format_bytes(total_down))
+        self.up_metric.setText(format_bytes(total_up))
 
         self._graph_buffer.push(total_down, total_up)
         xs, downs, ups = self._graph_buffer.series()
@@ -316,7 +397,9 @@ class NetoraWindow(QMainWindow):
                 name_item = QTableWidgetItem(str(p["name"]))
                 name_item.setData(self.PID_ROLE, int(p["pid"]))
 
-                pid_item = QTableWidgetItem(str(p["pid"]))
+                count = int(p.get("count", 1))
+                pid_text = f"{p['pid']} ({count})" if count > 1 else str(p["pid"])
+                pid_item = QTableWidgetItem(pid_text)
                 pid_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
                 down_item = QTableWidgetItem(format_bytes(float(p["down_bps"])))
@@ -357,9 +440,41 @@ class NetoraWindow(QMainWindow):
         super().closeEvent(a0)
 
 
+def elevate_if_needed() -> bool:
+    """If not running as administrator, relaunch with a Windows UAC prompt."""
+    if is_admin():
+        return True
+    try:
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None,
+            "runas",
+            sys.executable,
+            f'"{__file__}"' if not getattr(sys, "frozen", False) else "",
+            None,
+            1,
+        )
+        if ret > 32:
+            sys.exit(0)
+    except Exception:
+        pass
+    return False
+
+
 def main() -> int:
+    if not is_admin():
+        elevate_if_needed()
+
+    try:
+        myappid = "Skriptora.Netora.BandwidthManager.1.0"
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     apply_theme(app)
+    icon_path = get_asset_path("LOGO.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     window = NetoraWindow()
     window.show()
     return app.exec()
