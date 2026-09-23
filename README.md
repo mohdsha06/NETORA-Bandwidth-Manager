@@ -7,6 +7,17 @@
 
 ---
 
+## Known Issues
+
+It does the work but slight fine tuning is needed i will update when i have time
+Bandwidth capping works to pull high speeds down, but it isn't 100% precise yet. 
+For example, capping at 500 KB/s will successfully drop a multi-megabyte stream, 
+but the stabilized speed may hover around 750–850 KB/s. Finer packet-pacing 
+adjustments will be added in upcoming releases.
+
+
+---
+
 ## Quick Start (No Python Required)
 
 1. Go to the [Releases](https://github.com/mohdsha06/NETORA-Bandwidth-Manager/releases) tab.
