@@ -1,95 +1,47 @@
 # Netora
 
-Netora is a small Windows desktop tool for watching network activity and putting a speed ceiling on a selected process.
+> Simple, per-application bandwidth manager and live network monitor for Windows. Built by **Skriptora**.
 
-It uses PyQt6 for the interface, psutil for process and socket information, pyqtgraph for the live chart, and WinDivert for packet interception. The UI is intentionally close to the dark Windows Task Manager style.
+<!-- IMAGE PLACEHOLDER: Main Netora window running with dark theme, showing the process list and telemetry graph -->
+![Netora Main Interface](screenshots/main_interface.png)
 
-## What it does
+---
 
-- Shows current download and upload activity.
-- Lists processes with active network connections.
-- Applies separate download and upload limits to the selected process.
-- Tracks the selected process and total traffic in a 60-second chart.
-- Formats rates using binary units such as `KB/s` and `MB/s`.
-- Writes debug output to the console and `netora_debug.log`.
+## Quick Start (No Python Required)
 
-## How limiting works
+1. Go to the [Releases](https://github.com/mohdsha06/NETORA-Bandwidth-Manager/releases) tab.
+2. Download the latest `Netora-v1.0.0-win64.zip`.
+3. Extract the `.zip` anywhere on your PC.
+4. Double-click **`Netora.exe`** and accept the Windows UAC prompt (**Yes**) to grant driver privileges.
 
-When a limit is applied, Netora finds the selected PID's local network ports with psutil. WinDivert captures TCP and UDP traffic for those ports. Matching packets are delayed by a token bucket and then sent back into the network stack. Packets that do not match the selected process are passed through without an intentional delay.
+---
 
-The process list is based on Windows socket and process information. The total rate is measured from network interface counters. Per-process telemetry should be treated as an estimate rather than a replacement for ETW-based network accounting.
+## How to Set a Speed Limit
 
-## Requirements
+### Step 1: Select a Process
+Click on any application in the list (e.g., `firefox.exe` or `curl.exe`). Multi-process apps like browsers are automatically grouped into a single row.
 
-- Windows 10 or Windows 11, 64-bit
-- Python 3.10 or newer
-- Administrator privileges
-- WinDivert 64-bit binaries
+<!-- IMAGE PLACEHOLDER: Close-up screenshot of the process table with a process row (like firefox.exe) selected/highlighted -->
+![Select Process](screenshots/step1_select_process.png)
 
-WinDivert needs administrator access to install and open its packet interception driver. The project root should contain:
+### Step 2: Configure Speed Ceilings
+On the right panel under **Speed Ceiling Controller**:
+- Check **Limit Download**, enter your target speed, and choose your unit (`KB/s` or `MB/s`).
+- Check **Limit Upload** if you also want an upstream cap.
 
-```text
-NETORA/
-├── app.py
-├── engine.py
-├── theme.py
-├── WinDivert.dll
-└── WinDivert64.sys
-```
+<!-- IMAGE PLACEHOLDER: Close-up of the Speed Ceiling Controller panel showing checkboxes ticked with values entered (e.g., 500 KB/s) -->
+![Set Limit](screenshots/step2_set_ceiling.png)
 
-Use the official WinDivert release for the DLL and driver. Do not replace them with unsigned or modified copies.
+### Step 3: Apply the Ceiling
+Click **Apply Ceiling**. The status column updates immediately, and live bandwidth is held to your limit. 
 
-## Install
+<!-- IMAGE PLACEHOLDER: Telemetry graph showing bandwidth dropping and clamping cleanly after applying the ceiling -->
+![Limit Applied](screenshots/step3_applied_telemetry.png)
 
-From an elevated PowerShell window:
+To remove a limit, select the process and click **Remove Ceiling**.
 
-```powershell
-python -m pip install PyQt6 pyqtgraph psutil pydivert
-```
-
-Make sure `WinDivert.dll` and `WinDivert64.sys` are beside `app.py`.
-
-## Run
-
-Start the application from an Administrator PowerShell window:
-
-```powershell
-python app.py
-```
-
-Select a process in the table, choose a download or upload ceiling, and click **Apply Ceiling**. Use **Remove Ceiling** to clear the current limit.
-
-For a simple test, start a sustained download in another elevated PowerShell window:
-
-```powershell
-curl.exe -L "https://speed.cloudflare.com/__down?bytes=1000000000" -o NUL
-```
-
-Select `curl.exe` while it is running and apply a low download limit such as `500 KB/s`.
-
-## Troubleshooting
-
-### Access denied
-
-Run PowerShell or VS Code as Administrator before starting Netora.
-
-### WinDivert will not open
-
-Check that the DLL and driver match the Python process architecture and came from an official WinDivert release. The exact startup error is shown in the application status area and written to `netora_debug.log`.
-
-### The process list is empty
-
-Some processes and sockets require elevation to inspect. Start Netora as Administrator and wait for the first telemetry update.
-
-## Project files
-
-- `app.py` contains the PyQt6 window and process table.
-- `engine.py` contains WinDivert shaping and telemetry collection.
-- `theme.py` contains the palette, stylesheet, and rate formatter.
+---
 
 ## License
 
-Netora is distributed under the MIT License.
-
-WinDivert is a separate dependency and remains subject to its own LGPL/GPL licensing terms.
-
+MIT License © Skriptora. WinDivert is licensed under LGPL v3.
